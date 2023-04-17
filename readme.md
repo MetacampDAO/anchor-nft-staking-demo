@@ -30,3 +30,9 @@ A user can have multiple UserStakeInfo. Each UserStakeInfo tracks the state of e
 
 - Transfer NFT back to the user token account from token account owned by `UserStakeInfo`.
 - Calculate points based on `last_stake_redeem` from `UserStakeInfo` and update balance in `UserInfo`
+
+# Further upgrade
+
+1. Allow any collection to create their owned staking pool
+2. Complete NFT collection verification checking
+3. Allow one click stake all, redeem all, and unstake all
