@@ -2,7 +2,6 @@ import * as web3 from "@solana/web3.js";
 import {
   Metaplex,
   keypairIdentity,
-  bundlrStorage,
   NftWithToken,
 } from "@metaplex-foundation/js";
 

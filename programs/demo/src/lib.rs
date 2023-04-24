@@ -1,10 +1,10 @@
 use anchor_lang::{prelude::*, solana_program};
-use anchor_spl::associated_token::{AssociatedToken};
-use anchor_spl::token::{self, TokenAccount, Token, Mint};
-use mpl_token_metadata::state::{TokenMetadataAccount, Metadata};
+use anchor_spl::associated_token::AssociatedToken;
+use anchor_spl::token::{self, Mint, Token, TokenAccount};
+use mpl_token_metadata::state::{Metadata, TokenMetadataAccount};
 use solana_program::sysvar::clock::Clock;
 
-declare_id!("4RJD7nTLNu3AKGzu82FBLjwKZDJrczBfamffteQRvfV3");
+declare_id!("81MRLWNW25VrFiUw7usFDwB2cR87kMqzVLXS1xE4YtU6");
 
 // const COLLECTION_ADDRESS: &str = "Fg6PaFpoGXkYsidMpWTK6W2BeZ7FEfcYkg476zPFsLnS";
 const HOUR: u64 = 3600;
@@ -16,7 +16,6 @@ pub mod demo {
     use super::*;
 
     pub fn stake(ctx: Context<Stake>) -> Result<()> {
-        
         // Check if user_info has been initialized
         if !ctx.accounts.user_info.is_initialized {
             ctx.accounts.user_info.is_initialized = true;
@@ -25,7 +24,8 @@ pub mod demo {
         }
 
         // Check if Metadata is valid
-        let metadata: Metadata = Metadata::from_account_info(&ctx.accounts.nft_metadata.to_account_info())?;
+        let metadata: Metadata =
+            Metadata::from_account_info(&ctx.accounts.nft_metadata.to_account_info())?;
         let collection = metadata.collection.unwrap();
         msg!("Collection ID is: {}", collection.key);
 
@@ -38,32 +38,38 @@ pub mod demo {
         let cpi_accounts = Transfer {
             from: ctx.accounts.user_nft_account.to_account_info(),
             to: ctx.accounts.pda_nft_account.to_account_info(),
-            authority: ctx.accounts.initializer.to_account_info()
+            authority: ctx.accounts.initializer.to_account_info(),
         };
         let token_transfer_context = CpiContext::new(cpi_program, cpi_accounts);
         token::transfer(token_transfer_context, 1)?;
 
         // Populate staking_info info
-        ctx.accounts.staking_info.token_account = ctx.accounts.user_nft_account.key();
+        ctx.accounts.staking_info.mint = ctx.accounts.mint.key();
+        ctx.accounts.staking_info.staker = ctx.accounts.initializer.key();
         ctx.accounts.staking_info.stake_start_time = Clock::get().unwrap().unix_timestamp as u64;
         ctx.accounts.staking_info.last_stake_redeem = Clock::get().unwrap().unix_timestamp as u64;
         ctx.accounts.staking_info.stake_state = StakeState::Stake;
 
         // Add user_info active stake count by 1
-        ctx.accounts.user_info.active_stake = ctx.accounts.user_info.active_stake.checked_add(1).unwrap();
-        
+        ctx.accounts.user_info.active_stake =
+            ctx.accounts.user_info.active_stake.checked_add(1).unwrap();
+
         Ok(())
     }
-    
+
     pub fn redeem(ctx: Context<Redeem>) -> Result<()> {
-        
         // Calculate rewards
         let current_time = Clock::get().unwrap().unix_timestamp as u64;
         let amount = (current_time - ctx.accounts.staking_info.last_stake_redeem) / HOUR;
 
         // Add amount to user_info point balance
-        ctx.accounts.user_info.point_balance = ctx.accounts.user_info.point_balance.checked_add(amount).unwrap();
-        
+        ctx.accounts.user_info.point_balance = ctx
+            .accounts
+            .user_info
+            .point_balance
+            .checked_add(amount)
+            .unwrap();
+
         // Update staking_info last stake_redeem
         ctx.accounts.staking_info.last_stake_redeem = current_time;
 
@@ -84,7 +90,7 @@ pub mod demo {
         let cpi_accounts = Transfer {
             from: ctx.accounts.pda_nft_account.to_account_info(),
             to: ctx.accounts.user_nft_account.to_account_info(),
-            authority: ctx.accounts.staking_info.to_account_info()
+            authority: ctx.accounts.staking_info.to_account_info(),
         };
         let token_transfer_context = CpiContext::new_with_signer(cpi_program, cpi_accounts, signer);
         token::transfer(token_transfer_context, 1)?;
@@ -93,16 +99,21 @@ pub mod demo {
         let current_time = Clock::get().unwrap().unix_timestamp as u64;
         let amount = (current_time - ctx.accounts.staking_info.last_stake_redeem) / HOUR;
 
-        ctx.accounts.user_info.point_balance = ctx.accounts.user_info.point_balance.checked_add(amount).unwrap();
+        ctx.accounts.user_info.point_balance = ctx
+            .accounts
+            .user_info
+            .point_balance
+            .checked_add(amount)
+            .unwrap();
         ctx.accounts.staking_info.last_stake_redeem = current_time;
-        
+
         ctx.accounts.staking_info.stake_state = StakeState::Unstake;
 
-        ctx.accounts.user_info.active_stake = ctx.accounts.user_info.active_stake.checked_sub(1).unwrap();
+        ctx.accounts.user_info.active_stake =
+            ctx.accounts.user_info.active_stake.checked_sub(1).unwrap();
 
         Ok(())
     }
-
 }
 
 //* Allow user to stake their NFT to get rewards at a rate of 1 Point per Hour
@@ -172,7 +183,7 @@ pub struct Redeem<'info> {
     // mint is required to check staking_info and pda_nft_account
     pub mint: Account<'info, Mint>,
     // System Program requred for deduction of lamports (fees)
-    pub system_program: Program<'info, System>
+    pub system_program: Program<'info, System>,
 }
 
 #[derive(Accounts)]
@@ -182,7 +193,8 @@ pub struct Unstake<'info> {
     // Check account seed and init if required
     #[account(
         mut, seeds=[b"stake_info", initializer.key().as_ref(), mint.key().as_ref()], bump,
-        constraint = user_nft_account.key() == staking_info.token_account
+        constraint = initializer.key() == staking_info.staker,
+        close = initializer
     )]
     pub staking_info: Account<'info, UserStakeInfo>,
     // Check if initializer is signer, mut is required to reduce lamports (fees)
@@ -205,6 +217,7 @@ pub struct Unstake<'info> {
     )]
     pub pda_nft_account: Account<'info, TokenAccount>,
     // mint is required to check staking_info, user_nft_account, and pda_nft_account
+    #[account(constraint = staking_info.mint == mint.key())]
     pub mint: Account<'info, Mint>,
     // Token Program required to call transfer instruction
     pub token_program: Program<'info, Token>,
@@ -221,18 +234,19 @@ pub struct UserInfo {
 
 #[account]
 pub struct UserStakeInfo {
-    token_account: Pubkey,
+    staker: Pubkey,
+    mint: Pubkey,
     stake_start_time: u64,
     last_stake_redeem: u64,
     stake_state: StakeState,
 }
 
 const DISCRIMINATOR: usize = 8;
-const PUBKEY:usize = 32;
-const BOOL:usize = 1;
-const U64:usize = 8;
-const U16:usize = 2;
-const STATE:usize = 1;
+const PUBKEY: usize = 32;
+const BOOL: usize = 1;
+const U64: usize = 8;
+const U16: usize = 2;
+const STATE: usize = 1;
 
 impl UserInfo {
     fn len() -> usize {
@@ -242,14 +256,14 @@ impl UserInfo {
 
 impl UserStakeInfo {
     fn len() -> usize {
-        DISCRIMINATOR + PUBKEY + U64 + U64 + STATE
+        DISCRIMINATOR + PUBKEY + PUBKEY + U64 + U64 + STATE
     }
 }
 
 #[derive(AnchorSerialize, AnchorDeserialize, Clone, Copy)]
 enum StakeState {
     Stake,
-    Unstake
+    Unstake,
 }
 
 #[error_code]

@@ -152,10 +152,6 @@ describe("demo", () => {
     );
     const userInfoAfter = await program.account.userInfo.fetch(userInfo);
 
-    assert.equal(
-      userStakeInfoAfter.tokenAccount.toString(),
-      userNftAccount.toString()
-    );
     assert.equal(userInfoAfter.activeStake, 1);
 
     console.log("Your transaction signature", tx);
