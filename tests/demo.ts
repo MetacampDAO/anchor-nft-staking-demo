@@ -3,7 +3,6 @@ import { web3 } from "@project-serum/anchor";
 import { Program } from "@project-serum/anchor";
 import {
   ASSOCIATED_TOKEN_PROGRAM_ID,
-  getAccount,
   getAssociatedTokenAddress,
   TOKEN_PROGRAM_ID,
 } from "@solana/spl-token";
@@ -24,11 +23,6 @@ const getProgramPdaInfo = async (
   staker: web3.PublicKey,
   userStakeInfo: web3.PublicKey
 ) => {
-  const metaplex = new Metaplex(connection);
-  const { metadataAddress } = await metaplex
-    .nfts()
-    .findByMint({ mintAddress: mint });
-
   const userNftAccount = await getAssociatedTokenAddress(mint, staker);
 
   const pdaNftAccount = await getAssociatedTokenAddress(
@@ -37,7 +31,7 @@ const getProgramPdaInfo = async (
     true
   );
 
-  return { metadataAddress, userNftAccount, pdaNftAccount };
+  return { userNftAccount, pdaNftAccount };
 };
 
 const getUserInfo = (
@@ -109,27 +103,30 @@ describe("demo", () => {
   let nftMint = null;
 
   it("Setup", async () => {
-    await airdrop1Sol(program, staker.publicKey);
+    try {
+      await airdrop1Sol(program, staker.publicKey);
 
-    // Create NFT Collection
-    const { nftCollection: nftCollectionX, nftMint: nftMintX } =
-      await initMetaplex(program.provider.connection, staker);
-    // Update NFT State
-    nftCollection = new web3.PublicKey(nftCollectionX);
-    nftMint = new web3.PublicKey(nftMintX);
+      // Create NFT Collection
+      const { nftCollection: nftCollectionX, nftMint: nftMintX } =
+        await initMetaplex(program.provider.connection, staker);
+      // Update NFT State
+      nftCollection = new web3.PublicKey(nftCollectionX);
+      nftMint = new web3.PublicKey(nftMintX);
+    } catch (error) {
+      process.exit(1);
+    }
   });
 
   it("Stake", async () => {
     const userStakeInfo = getUserStakeInfo(program, staker.publicKey, nftMint);
     const userInfo = getUserInfo(program, staker.publicKey);
 
-    const { userNftAccount, pdaNftAccount, metadataAddress } =
-      await getProgramPdaInfo(
-        program.provider.connection,
-        nftMint,
-        staker.publicKey,
-        userStakeInfo
-      );
+    const { userNftAccount, pdaNftAccount } = await getProgramPdaInfo(
+      program.provider.connection,
+      nftMint,
+      staker.publicKey,
+      userStakeInfo
+    );
 
     const tx = await program.methods
       .stake()
@@ -139,7 +136,6 @@ describe("demo", () => {
         initializer: staker.publicKey,
         userNftAccount: userNftAccount,
         pdaNftAccount: pdaNftAccount,
-        nftMetadata: metadataAddress,
         mint: nftMint,
         tokenProgram: TOKEN_PROGRAM_ID,
         associatedTokenProgram: ASSOCIATED_TOKEN_PROGRAM_ID,
@@ -147,9 +143,6 @@ describe("demo", () => {
       .signers([staker])
       .rpc();
 
-    const userStakeInfoAfter = await program.account.userStakeInfo.fetch(
-      userStakeInfo
-    );
     const userInfoAfter = await program.account.userInfo.fetch(userInfo);
 
     assert.equal(userInfoAfter.activeStake, 1);
