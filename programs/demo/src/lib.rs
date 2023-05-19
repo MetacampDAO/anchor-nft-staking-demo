@@ -45,25 +45,6 @@ pub mod demo {
         Ok(())
     }
 
-    pub fn redeem(ctx: Context<Redeem>) -> Result<()> {
-        // Calculate rewards
-        let current_time = Clock::get().unwrap().unix_timestamp as u64;
-        let amount = (current_time - ctx.accounts.staking_info.last_stake_redeem) / SECONDS;
-
-        // Add amount to user_info point balance
-        ctx.accounts.user_info.point_balance = ctx
-            .accounts
-            .user_info
-            .point_balance
-            .checked_add(amount)
-            .unwrap();
-
-        // Update staking_info last stake_redeem
-        ctx.accounts.staking_info.last_stake_redeem = current_time;
-
-        Ok(())
-    }
-
     pub fn unstake(ctx: Context<Unstake>) -> Result<()> {
         // Proceed to transfer
         let auth_bump = *ctx.bumps.get("staking_info").unwrap(); // staking_info points to the name of the account
@@ -145,30 +126,6 @@ pub struct Stake<'info> {
     pub system_program: Program<'info, System>,
     // Rent required to get Rent
     pub rent: Sysvar<'info, Rent>,
-}
-
-#[derive(Accounts)]
-pub struct Redeem<'info> {
-    // Check account seed, mut required to increase amount
-    #[account(mut, seeds=[b"user", payer.key().as_ref()], bump )]
-    pub user_info: Account<'info, UserInfo>,
-    // Check account seed, mut required to update redeem time
-    #[account(mut, seeds=[b"stake_info", payer.key().as_ref(), mint.key().as_ref()], bump)]
-    pub staking_info: Account<'info, UserStakeInfo>,
-    // Check if payer is signer, mut is required to reduce lamports (fees)
-    #[account(mut)]
-    pub payer: Signer<'info>,
-    // Check if accounts has correct owner, mint and has amount of 1
-    #[account(
-        constraint = pda_nft_account.owner == staking_info.key(), // Check to make sure the correct pda_nft_account is pass in
-        constraint = pda_nft_account.mint == mint.key(), // Check for the correct mint
-        constraint = pda_nft_account.amount == 1, // Check if this TokenAccount has an NFT (value == 1)
-    )]
-    pub pda_nft_account: Account<'info, TokenAccount>,
-    // mint is required to check staking_info and pda_nft_account
-    pub mint: Account<'info, Mint>,
-    // System Program requred for deduction of lamports (fees)
-    pub system_program: Program<'info, System>,
 }
 
 #[derive(Accounts)]
