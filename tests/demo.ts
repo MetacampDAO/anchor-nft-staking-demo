@@ -71,7 +71,46 @@ describe("demo", () => {
     console.log("Your transaction signature", tx);
   });
 
-  it("Redeem", async () => {});
+  it("Redeem", async () => {
+    const userStakeInfo = getUserStakeInfo(program, staker.publicKey, nftMint);
+    const userInfo = getUserInfo(program, staker.publicKey);
+
+    const { pdaNftAccount } = await getTokenAccounts(
+      nftMint,
+      staker.publicKey,
+      userStakeInfo
+    );
+
+    const userStakeInfoBefore = await program.account.userStakeInfo.fetch(
+      userStakeInfo
+    );
+    const userInfoBefore = await program.account.userInfo.fetch(userInfo);
+
+    const tx = await program.methods
+      .redeem()
+      .accounts({
+        userInfo: userInfo,
+        stakingInfo: userStakeInfo,
+        payer: staker.publicKey,
+        pdaNftAccount: pdaNftAccount,
+        mint: nftMint,
+      })
+      .signers([staker])
+      .rpc();
+
+    const userStakeInfoAfter = await program.account.userStakeInfo.fetch(
+      userStakeInfo
+    );
+    const userInfoAfter = await program.account.userInfo.fetch(userInfo);
+
+    assert.notEqual(
+      userStakeInfoBefore.lastStakeRedeem,
+      userStakeInfoAfter.lastStakeRedeem
+    );
+    assert.notEqual(userInfoBefore.pointBalance, userInfoAfter.pointBalance);
+
+    console.log("Your transaction signature", tx);
+  });
 
   it("Unstake", async () => {
     const userStakeInfo = getUserStakeInfo(program, staker.publicKey, nftMint);
