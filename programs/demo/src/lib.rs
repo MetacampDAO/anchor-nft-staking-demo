@@ -3,7 +3,7 @@ use anchor_spl::associated_token::AssociatedToken;
 use anchor_spl::token::{self, Mint, Token, TokenAccount, Transfer};
 use solana_program::sysvar::clock::Clock;
 
-declare_id!("9ocJjA6PkoLDqadYxRnJjfLyymiDGEGuKG2ky9fbtCo5");
+declare_id!("8kiA1BcKb4tnT2QW8oSWAmtkoEdxMoxBtLBPettViJdH");
 
 const SECONDS: u64 = 1;
 
@@ -36,11 +36,30 @@ pub mod demo {
         ctx.accounts.staking_info.owner = ctx.accounts.initializer.key();
         ctx.accounts.staking_info.stake_start_time = Clock::get().unwrap().unix_timestamp as u64;
         ctx.accounts.staking_info.last_stake_redeem = Clock::get().unwrap().unix_timestamp as u64;
-        ctx.accounts.staking_info.stake_state = StakeState::Stake;
+        ctx.accounts.staking_info.stake_state = 1;
 
         // Add user_info active stake count by 1
         ctx.accounts.user_info.active_stake =
             ctx.accounts.user_info.active_stake.checked_add(1).unwrap();
+
+        Ok(())
+    }
+
+    pub fn redeem(ctx: Context<Redeem>) -> Result<()> {
+        // Calculate rewards
+        let current_time = Clock::get().unwrap().unix_timestamp as u64;
+        let amount = (current_time - ctx.accounts.staking_info.last_stake_redeem) / SECONDS;
+
+        // Add amount to user_info point balance
+        ctx.accounts.user_info.point_balance = ctx
+            .accounts
+            .user_info
+            .point_balance
+            .checked_add(amount)
+            .unwrap();
+
+        // Update staking_info last stake_redeem
+        ctx.accounts.staking_info.last_stake_redeem = current_time;
 
         Ok(())
     }
@@ -81,7 +100,7 @@ pub mod demo {
             .unwrap();
         ctx.accounts.staking_info.last_stake_redeem = current_time;
 
-        ctx.accounts.staking_info.stake_state = StakeState::Unstake;
+        ctx.accounts.staking_info.stake_state = 0;
 
         ctx.accounts.user_info.active_stake =
             ctx.accounts.user_info.active_stake.checked_sub(1).unwrap();
@@ -126,6 +145,30 @@ pub struct Stake<'info> {
     pub system_program: Program<'info, System>,
     // Rent required to get Rent
     pub rent: Sysvar<'info, Rent>,
+}
+
+#[derive(Accounts)]
+pub struct Redeem<'info> {
+    // Check account seed, mut required to increase amount
+    #[account(mut, seeds=[b"user", payer.key().as_ref()], bump )]
+    pub user_info: Account<'info, UserInfo>,
+    // Check account seed, mut required to update redeem time
+    #[account(mut, seeds=[b"stake_info", payer.key().as_ref(), mint.key().as_ref()], bump)]
+    pub staking_info: Account<'info, UserStakeInfo>,
+    // Check if payer is signer, mut is required to reduce lamports (fees)
+    #[account(mut)]
+    pub payer: Signer<'info>,
+    // Check if accounts has correct owner, mint and has amount of 1
+    #[account(
+        constraint = pda_nft_account.owner == staking_info.key(), // Check to make sure the correct pda_nft_account is pass in
+        constraint = pda_nft_account.mint == mint.key(), // Check for the correct mint
+        constraint = pda_nft_account.amount == 1, // Check if this TokenAccount has an NFT (value == 1)
+    )]
+    pub pda_nft_account: Account<'info, TokenAccount>,
+    // mint is required to check staking_info and pda_nft_account
+    pub mint: Account<'info, Mint>,
+    // System Program requred for deduction of lamports (fees)
+    pub system_program: Program<'info, System>,
 }
 
 #[derive(Accounts)]
@@ -180,7 +223,7 @@ pub struct UserStakeInfo {
     mint: Pubkey,
     stake_start_time: u64,
     last_stake_redeem: u64,
-    stake_state: StakeState,
+    stake_state: u8,
 }
 
 const DISCRIMINATOR: usize = 8;
@@ -200,12 +243,6 @@ impl UserStakeInfo {
     fn len() -> usize {
         DISCRIMINATOR + PUBKEY + PUBKEY + U64 + U64 + STATE
     }
-}
-
-#[derive(AnchorSerialize, AnchorDeserialize, Clone, Copy)]
-enum StakeState {
-    Stake,
-    Unstake,
 }
 
 #[error_code]

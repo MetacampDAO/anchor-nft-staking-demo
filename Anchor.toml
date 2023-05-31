@@ -2,14 +2,21 @@
 seeds = false
 skip-lint = false
 [programs.devnet]
-demo = "9ocJjA6PkoLDqadYxRnJjfLyymiDGEGuKG2ky9fbtCo5"
+demo = "8kiA1BcKb4tnT2QW8oSWAmtkoEdxMoxBtLBPettViJdH"
 
 [registry]
 url = "https://api.apr.dev"
 
 [provider]
 cluster = "devnet"
-wallet = "/home/justinlee/.config/solana/id.json"
+wallet = "/home/justinlee/.config/solana/devnet.json"
 
 [scripts]
 test = "yarn run ts-mocha -p ./tsconfig.json -t 1000000 tests/**/*.ts"
+
+[test.validator]
+url = "https://api.devnet.solana.com"
+
+# Token Metadata program
+[[test.validator.clone]]
+address = "metaqbxxUerdq28cj1RbAWkYQm3ybzjb6a8bt518x1s"
