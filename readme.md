@@ -2,9 +2,9 @@
 ![Ride Hailing (9)](https://github.com/MetacampDAO/anchor-nft-staking-demo/assets/34192730/e42b76b9-6249-44a2-876a-1bcbd6834f3c)
 
 # How it works
-1. User can stake their NFTs, which rewards them 1 point per hour per NFT
+1. User can stake their NFTs, which rewards them 1 point per second per NFT
 2. User can redeem their points anytime
-3. User can unstake their NFT, which will trigger
+3. User can unstake their NFT, which will redeem any uncollected amount 
 
 # Accounts
 
